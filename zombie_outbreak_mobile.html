@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full w-full overflow-hidden bg-slate-950 select-none">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Zombie Outbreak 2D - Mobile Edition</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Creepster&family=Orbitron:wght@500;700;900&family=Teko:wght@500;700&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: none;
+        }
+
+        .font-zombie { font-family: 'Creepster', cursive; }
+        .font-arcade { font-family: 'Orbitron', sans-serif; }
+        .font-ui { font-family: 'Teko', sans-serif; }
+
+        /* CRT Scanline Retro Arcade Effect */
+        .crt::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+            pointer-events: none;
+            z-index: 20;
+            background-size: 100% 3px, 6px 100%;
+        }
+
+        /* Glow Utility Effects */
+        .glow-red { text-shadow: 0 0 10px rgba(239, 68, 68, 0.8), 0 0 20px rgba(239, 68, 68, 0.4); }
+        .glow-amber { text-shadow: 0 0 10px rgba(245, 158, 11, 0.8); }
+        .glow-purple { text-shadow: 0 0 10px rgba(168, 85, 247, 0.8); }
+
+        /* Virtual Joystick Base Styles */
+        .joystick-base {
+            width: 120px;
+            height: 120px;
+            background: rgba(30, 41, 59, 0.45);
+            border: 2px solid rgba(255, 255, 255, 0.25);
+            border-radius: 50%;
+            position: relative;
+            backdrop-filter: blur(4px);
+        }
+
+        .joystick-stick {
+            width: 50px;
+            height: 50px;
+            background: rgba(245, 158, 11, 0.7);
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.5);
+        }
+
+        .joystick-stick-aim {
+            background: rgba(239, 68, 68, 0.7);
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.5);
+        }
+
+        .touch-action-btn {
+            background: rgba(30, 41, 59, 0.6);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(6px);
+        }
+        .touch-action-btn:active {
+            background: rgba(239, 68, 68, 0.6);
+            border-color: rgba(239, 68, 68, 0.9);
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+<body class="h-full w-full m-0 p-0 overflow-hidden bg-slate-950 text-white font-ui crt flex items-center justify-center">
+
+    <!-- Container Utama Game -->
+    <div id="game-container" class="relative w-full h-full flex items-center justify-center overflow-hidden">
+        
+        <!-- Canvas Game 2D Top-Down -->
+        <canvas id="gameCanvas" class="block bg-slate-950"></canvas>
+
+        <!-- PANEL HUD MOBILE (Status Game) -->
+        <div id="hud" class="hidden absolute top-2 left-2 right-2 z-10 flex justify-between items-start pointer-events-none text-base sm:text-xl tracking-wider">
+            <!-- HP & Status Senjata -->
+            <div class="flex flex-col gap-1 bg-slate-900/85 border border-slate-700/80 p-2 sm:p-3 rounded-xl backdrop-blur-md shadow-2xl min-w-[140px] sm:min-w-[190px]">
+                <div class="flex items-center gap-1.5">
+                    <i class="fa-solid fa-heart text-red-500 animate-pulse text-xs sm:text-base"></i>
+                    <div class="w-24 sm:w-40 h-3 sm:h-4 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                        <div id="health-bar" class="h-full bg-gradient-to-r from-red-600 via-amber-500 to-emerald-500 transition-all duration-150" style="width: 100%;"></div>
+                    </div>
+                    <span id="health-text" class="text-xs sm:text-sm font-bold font-arcade ml-1">100 HP</span>
+                </div>
+                
+                <div class="flex items-center justify-between border-t border-slate-800 pt-1 mt-0.5">
+                    <div class="flex items-center gap-1">
+                        <i class="fa-solid fa-burst text-amber-400 text-xs sm:text-base"></i>
+                        <span id="ammo-text" class="font-bold text-amber-400 font-arcade text-sm sm:text-lg">30 / 120</span>
+                    </div>
+                    <span id="weapon-name" class="text-sky-400 font-bold tracking-widest font-arcade text-xs sm:text-sm">PISTOL</span>
+                </div>
+            </div>
+
+            <!-- Gelombang Zombie (Wave) -->
+            <div class="flex flex-col items-center bg-slate-900/85 border border-slate-700/80 px-3 sm:px-5 py-1 rounded-xl backdrop-blur-md shadow-2xl">
+                <div class="text-[10px] sm:text-xs text-slate-400 tracking-widest uppercase font-arcade">WAVE</div>
+                <div id="wave-text" class="text-xl sm:text-4xl font-extrabold text-red-500 glow-red font-arcade">1</div>
+            </div>
+
+            <!-- Skor & Rekor Highscore -->
+            <div class="flex flex-col items-end bg-slate-900/85 border border-slate-700/80 p-2 sm:p-3 rounded-xl backdrop-blur-md shadow-2xl min-w-[110px] sm:min-w-[140px]">
+                <div class="flex items-center gap-1">
+                    <span class="text-slate-400 text-xs">SCORE:</span>
+                    <span id="score-text" class="font-bold text-amber-300 font-arcade text-base sm:text-xl glow-amber">0</span>
+                </div>
+                <div class="flex items-center gap-1 text-[10px] sm:text-xs text-purple-400">
+                    <i class="fa-solid fa-trophy"></i>
+                    <span id="highscore-hud" class="font-arcade">HI: 0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- KONTROL VIRTUAL SENTUH MOBILE (DUAL JOYSTICKS) -->
+        <div id="mobile-controls" class="hidden absolute inset-0 z-20 pointer-events-none flex flex-col justify-between p-4 sm:p-8">
+            <!-- Tombol Atas Right (Reload & Fire Toggle) -->
+            <div class="flex justify-end gap-3 pointer-events-auto pt-12 sm:pt-14">
+                <button id="btn-toggle-autofire" class="touch-action-btn px-3 py-2 rounded-xl text-xs font-arcade text-amber-400 flex items-center gap-1.5 shadow-lg">
+                    <i class="fa-solid fa-bolt"></i> <span id="autofire-label">AUTO: ON</span>
+                </button>
+                <button id="btn-reload" class="touch-action-btn w-12 h-12 sm:w-14 sm:h-14 rounded-full flex items-center justify-center text-white text-xl shadow-lg">
+                    <i class="fa-solid fa-rotate-right"></i>
+                </button>
+            </div>
+
+            <!-- Area Dual Joysticks (Bahagian Bawah Skrin) -->
+            <div class="flex justify-between items-end w-full pb-2 sm:pb-4">
+                <!-- Joystick Kiri: Pergerakan (Movement) -->
+                <div id="move-joystick-area" class="pointer-events-auto p-2">
+                    <div id="move-base" class="joystick-base">
+                        <div id="move-stick" class="joystick-stick"></div>
+                    </div>
+                </div>
+
+                <!-- Joystick Kanan: Bidikan & Tembakan (Aim & Fire) -->
+                <div class="flex flex-col items-center gap-3 pointer-events-auto p-2">
+                    <!-- Tombol Tembak Manual Utama -->
+                    <button id="btn-manual-fire" class="touch-action-btn w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-red-600/70 border-2 border-red-400 flex items-center justify-center text-2xl text-white shadow-xl shadow-red-950/80 active:scale-90">
+                        <i class="fa-solid fa-crosshairs"></i>
+                    </button>
+
+                    <div id="aim-base" class="joystick-base">
+                        <div id="aim-stick" class="joystick-stick joystick-stick-aim"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- OVERLAY LAYAR UTAMA (MENU AWAL) -->
+        <div id="start-screen" class="absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-lg p-4 text-center">
+            <div class="max-w-md w-full border border-red-900/40 bg-slate-900/90 p-6 sm:p-8 rounded-3xl shadow-2xl shadow-red-950/50 flex flex-col items-center">
+                <div class="inline-flex items-center gap-2 text-red-500 mb-1 text-xs sm:text-sm tracking-widest font-arcade">
+                    <i class="fa-solid fa-biohazard text-lg animate-spin"></i> MOBILE SURVIVAL 2D
+                </div>
+                <h1 class="text-4xl sm:text-6xl font-zombie text-red-600 tracking-wider glow-red mb-2">
+                    ZOMBIE OUTBREAK
+                </h1>
+                <p class="text-slate-300 text-xs sm:text-base mb-4">
+                    Gunakan Joystick Kiri untuk bergerak & Joystick Kanan untuk membidik/menembak zombie!
+                </p>
+
+                <!-- Instruksi Kontrol Game -->
+                <div class="bg-slate-950/80 border border-slate-800 p-3 sm:p-4 rounded-xl mb-5 text-left w-full text-slate-300 text-xs sm:text-sm space-y-1.5 font-arcade">
+                    <div class="font-bold text-red-400 border-b border-slate-800 pb-1 mb-1.5 tracking-wider flex justify-between">
+                        <span>KAWALAN SENTUH MOBILE</span>
+                        <i class="fa-solid fa-mobile-screen-button"></i>
+                    </div>
+                    <div class="flex justify-between"><span>Pergerakan:</span> <span class="text-amber-400">Joystick Kiri</span></div>
+                    <div class="flex justify-between"><span>Bidikan & Tembakan:</span> <span class="text-amber-400">Joystick Kanan / Fire</span></div>
+                    <div class="flex justify-between"><span>Isi Semula Peluru:</span> <span class="text-amber-400">Tombol Reload (R)</span></div>
+                </div>
+
+                <button id="start-btn" class="w-full py-3.5 bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 hover:to-red-500 active:scale-95 text-white font-bold text-xl sm:text-2xl font-arcade rounded-xl shadow-lg shadow-red-600/40 transition-all cursor-pointer pointer-events-auto border border-red-400/30">
+                    <i class="fa-solid fa-play mr-2"></i> MULAI PERMAINAN
+                </button>
+            </div>
+        </div>
+
+        <!-- OVERLAY GAME OVER -->
+        <div id="gameover-screen" class="hidden absolute inset-0 z-30 flex flex-col items-center justify-center bg-slate-950/95 backdrop-blur-lg p-4 text-center">
+            <div class="max-w-md w-full border border-red-900/60 bg-slate-900/90 p-6 sm:p-8 rounded-3xl shadow-2xl flex flex-col items-center">
+                <h2 class="text-5xl sm:text-7xl font-zombie text-red-500 glow-red mb-1">ANDA MATI!</h2>
+                <p class="text-slate-400 text-sm sm:text-lg mb-4 font-arcade">Wabah Zombie Menguasai Peta</p>
+
+                <div class="bg-slate-950/80 border border-red-950 p-4 rounded-2xl mb-5 w-full space-y-2 font-arcade text-sm sm:text-base">
+                    <div class="flex justify-between border-b border-slate-800 pb-1.5">
+                        <span class="text-slate-400">Skor Akhir:</span>
+                        <span id="final-score" class="font-bold text-amber-400 text-lg glow-amber">0</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-800 pb-1.5">
+                        <span class="text-slate-400">Zombie Terbunuh:</span>
+                        <span id="final-kills" class="font-bold text-red-400 text-lg">0</span>
+                    </div>
+                    <div class="flex justify-between border-b border-slate-800 pb-1.5">
+                        <span class="text-slate-400">Gelombang Tertinggi:</span>
+                        <span id="final-wave" class="font-bold text-emerald-400 text-lg">1</span>
+                    </div>
+                    <div class="flex justify-between pt-1">
+                        <span class="text-purple-400 font-bold">REKOR TERTINGGI:</span>
+                        <span id="high-score" class="font-bold text-purple-300 text-lg glow-purple">0</span>
+                    </div>
+                </div>
+
+                <button id="restart-btn" class="w-full py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 active:scale-95 text-white font-bold text-xl sm:text-2xl font-arcade rounded-xl shadow-lg shadow-emerald-600/40 transition-all cursor-pointer pointer-events-auto border border-emerald-400/30">
+                    <i class="fa-solid fa-rotate-right mr-2"></i> COBA LAGI
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- LOGIKA GAME & TOUCH ENGINE -->
+    <script>
+        // Global Canvas & Context
+        let canvas, ctx;
+
+        // State Utama Permainan
+        let isGameRunning = false;
+        let score = 0;
+        let kills = 0;
+        let wave = 1;
+        let highScore = parseInt(localStorage.getItem('zombie_high_score') || '0');
+        let lastSpawnTime = 0;
+        let lastShootTime = 0;
+        let autoFireEnabled = true;
+
+        // Karakter Utama Pemain
+        const player = {
+            x: 0,
+            y: 0,
+            radius: 18,
+            color: '#38bdf8',
+            speed: 4.5,
+            hp: 100,
+            maxHp: 100,
+            angle: 0,
+            weapon: 'PISTOL',
+            ammo: 30,
+            maxAmmoInMag: 30,
+            reserveAmmo: 120,
+            fireRate: 180,
+            isReloading: false,
+            rapidFireTimer: 0
+        };
+
+        // Data Touch Joysticks
+        const moveJoystick = { active: false, x: 0, y: 0, touchId: null };
+        const aimJoystick = { active: false, x: 0, y: 0, touchId: null };
+
+        // Input Keyboard Fallback
+        const keys = {};
+
+        // Collections/Arrays Entitas Game
+        let bullets = [];
+        let zombies = [];
+        let particles = [];
+        let items = [];
+        let floatingTexts = [];
+
+        // WEB AUDIO API SYNTHESIZER
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) audioCtx = new AudioContext();
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSynthesizedSound(type) {
+            if (!audioCtx) return;
+
+            try {
+                const now = audioCtx.currentTime;
+
+                if (type === 'shoot') {
+                    const bufferSize = audioCtx.sampleRate * 0.08;
+                    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                    const output = buffer.getChannelData(0);
+                    for (let i = 0; i < bufferSize; i++) {
+                        output[i] = Math.random() * 2 - 1;
+                    }
+
+                    const noise = audioCtx.createBufferSource();
+                    noise.buffer = buffer;
+
+                    const filter = audioCtx.createBiquadFilter();
+                    filter.type = 'bandpass';
+                    filter.frequency.setValueAtTime(1000, now);
+                    filter.frequency.exponentialRampToValueAtTime(100, now + 0.08);
+
+                    const gain = audioCtx.createGain();
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+
+                    noise.connect(filter);
+                    filter.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    noise.start(now);
+
+                } else if (type === 'hit') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(120, now);
+                    osc.frequency.exponentialRampToValueAtTime(30, now + 0.1);
+
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.1);
+
+                } else if (type === 'pickup') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(400, now);
+                    osc.frequency.exponentialRampToValueAtTime(800, now + 0.15);
+
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+
+                } else if (type === 'gameover') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(300, now);
+                    osc.frequency.linearRampToValueAtTime(60, now + 0.8);
+
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.8);
+                }
+            } catch (e) {}
+        }
+
+        function resizeCanvas() {
+            if (!canvas) return;
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            if (!isGameRunning) {
+                player.x = canvas.width / 2;
+                player.y = canvas.height / 2;
+            }
+        }
+
+        function reloadWeapon() {
+            if (player.isReloading || player.ammo === player.maxAmmoInMag || player.reserveAmmo <= 0) return;
+            player.isReloading = true;
+            
+            const weaponElem = document.getElementById('weapon-name');
+            if (weaponElem) weaponElem.innerText = "RELOADING...";
+
+            setTimeout(() => {
+                const needed = player.maxAmmoInMag - player.ammo;
+                const toAdd = Math.min(needed, player.reserveAmmo);
+                player.ammo += toAdd;
+                player.reserveAmmo -= toAdd;
+                player.isReloading = false;
+                updateHUD();
+            }, 1100);
+        }
+
+        function updateHUD() {
+            const healthBar = document.getElementById('health-bar');
+            const healthText = document.getElementById('health-text');
+            const ammoText = document.getElementById('ammo-text');
+            const scoreText = document.getElementById('score-text');
+            const killsText = document.getElementById('kills-text');
+            const waveText = document.getElementById('wave-text');
+            const weaponName = document.getElementById('weapon-name');
+            const highscoreHud = document.getElementById('highscore-hud');
+
+            if (healthBar) healthBar.style.width = `${Math.max(0, player.hp)}%`;
+            if (healthText) healthText.innerText = `${Math.ceil(player.hp)} HP`;
+            if (ammoText) ammoText.innerText = `${player.ammo} / ${player.reserveAmmo}`;
+            if (scoreText) scoreText.innerText = score;
+            if (killsText) killsText.innerText = kills;
+            if (waveText) waveText.innerText = wave;
+            if (highscoreHud) highscoreHud.innerText = `HI: ${highScore}`;
+            
+            if (weaponName && !player.isReloading) {
+                weaponName.innerText = player.weapon;
+                weaponName.className = player.weapon === 'RAPID FIRE' 
+                    ? 'text-purple-400 font-bold tracking-widest font-arcade glow-purple animate-pulse text-xs sm:text-sm' 
+                    : 'text-sky-400 font-bold tracking-widest font-arcade text-xs sm:text-sm';
+            }
+        }
+
+        function spawnFloatingText(x, y, text, color) {
+            floatingTexts.push({
+                x: x,
+                y: y,
+                text: text,
+                color: color,
+                alpha: 1,
+                vy: -1.2
+            });
+        }
+
+        function shootBullet() {
+            if (!isGameRunning || player.isReloading) return;
+            if (player.ammo <= 0) {
+                reloadWeapon();
+                return;
+            }
+
+            const now = Date.now();
+            if (now - lastShootTime < player.fireRate) return;
+            lastShootTime = now;
+
+            player.ammo--;
+            updateHUD();
+            playSynthesizedSound('shoot');
+
+            particles.push({
+                x: player.x + Math.cos(player.angle) * 22,
+                y: player.y + Math.sin(player.angle) * 22,
+                vx: 0, vy: 0,
+                radius: 10,
+                alpha: 1,
+                color: '#fef08a'
+            });
+
+            const speed = 15;
+            bullets.push({
+                x: player.x + Math.cos(player.angle) * 15,
+                y: player.y + Math.sin(player.angle) * 15,
+                vx: Math.cos(player.angle) * speed,
+                vy: Math.sin(player.angle) * speed,
+                radius: player.weapon === 'RAPID FIRE' ? 5 : 4,
+                color: player.weapon === 'RAPID FIRE' ? '#a855f7' : '#f59e0b'
+            });
+        }
+
+        function spawnZombie() {
+            let x, y;
+            if (Math.random() < 0.5) {
+                x = Math.random() < 0.5 ? -40 : canvas.width + 40;
+                y = Math.random() * canvas.height;
+            } else {
+                x = Math.random() * canvas.width;
+                y = Math.random() < 0.5 ? -40 : canvas.height + 40;
+            }
+
+            const rand = Math.random();
+            let type = 'normal';
+            let speed = 1.8 + (wave * 0.12);
+            let hp = 30 + (wave * 6);
+            let radius = 16;
+            let color = '#22c55e';
+
+            if (rand > 0.70 && rand <= 0.90) {
+                type = 'runner';
+                speed = 3.3 + (wave * 0.15);
+                hp = 18 + (wave * 3);
+                radius = 13;
+                color = '#eab308';
+            } else if (rand > 0.90) {
+                type = 'tank';
+                speed = 1.0 + (wave * 0.05);
+                hp = 90 + (wave * 25);
+                radius = 26;
+                color = '#ef4444';
+            }
+
+            zombies.push({ x, y, speed, hp, maxHp: hp, radius, color, type });
+        }
+
+        function createBloodParticles(x, y, color, count = 8) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 4 + 1;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    radius: Math.random() * 3 + 1.5,
+                    alpha: 1,
+                    color: color
+                });
+            }
+        }
+
+        function gameOver() {
+            isGameRunning = false;
+            playSynthesizedSound('gameover');
+
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('zombie_high_score', highScore.toString());
+            }
+
+            document.getElementById('hud').classList.add('hidden');
+            document.getElementById('mobile-controls').classList.add('hidden');
+            document.getElementById('gameover-screen').classList.remove('hidden');
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('final-kills').innerText = kills;
+            document.getElementById('final-wave').innerText = wave;
+            document.getElementById('high-score').innerText = highScore;
+        }
+
+        function startGame() {
+            initAudio();
+
+            score = 0;
+            kills = 0;
+            wave = 1;
+            bullets = [];
+            zombies = [];
+            particles = [];
+            items = [];
+            floatingTexts = [];
+
+            player.x = canvas.width / 2;
+            player.y = canvas.height / 2;
+            player.hp = 100;
+            player.ammo = 30;
+            player.reserveAmmo = 120;
+            player.weapon = 'PISTOL';
+            player.fireRate = 180;
+            player.isReloading = false;
+            player.rapidFireTimer = 0;
+
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('gameover-screen').classList.add('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+            document.getElementById('mobile-controls').classList.remove('hidden');
+
+            updateHUD();
+            isGameRunning = true;
+            requestAnimationFrame(gameLoop);
+        }
+
+        function gameLoop(timestamp) {
+            if (!isGameRunning) return;
+
+            // Clear Background Canvas
+            ctx.fillStyle = '#090d16';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Grid Pattern
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            const gridSize = 40;
+            for (let x = 0; x < canvas.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+
+            // Rapid Fire Timer
+            if (player.rapidFireTimer > 0) {
+                player.rapidFireTimer -= 16;
+                if (player.rapidFireTimer <= 0) {
+                    player.weapon = 'PISTOL';
+                    player.fireRate = 180;
+                    updateHUD();
+                }
+            }
+
+            // 1. Pergerakan Pemain via Touch Joystick ATAU Keyboard
+            let moveX = moveJoystick.x;
+            let moveY = moveJoystick.y;
+
+            if (moveX === 0 && moveY === 0) {
+                if (keys['w'] || keys['arrowup']) moveY -= 1;
+                if (keys['s'] || keys['arrowdown']) moveY += 1;
+                if (keys['a'] || keys['arrowleft']) moveX -= 1;
+                if (keys['d'] || keys['arrowright']) moveX += 1;
+
+                if (moveX !== 0 && moveY !== 0) {
+                    moveX *= 0.7071;
+                    moveY *= 0.7071;
+                }
+            }
+
+            player.x += moveX * player.speed;
+            player.y += moveY * player.speed;
+
+            player.x = Math.max(player.radius, Math.min(canvas.width - player.radius, player.x));
+            player.y = Math.max(player.radius, Math.min(canvas.height - player.radius, player.y));
+
+            // 2. Bidikan & Tembakan Pemain (Aiming & Shooting)
+            if (aimJoystick.active && (aimJoystick.x !== 0 || aimJoystick.y !== 0)) {
+                player.angle = Math.atan2(aimJoystick.y, aimJoystick.x);
+                if (autoFireEnabled) shootBullet();
+            }
+
+            // Spawn Zombie
+            const spawnInterval = Math.max(350, 1900 - (wave * 140));
+            if (timestamp - lastSpawnTime > spawnInterval) {
+                spawnZombie();
+                lastSpawnTime = timestamp;
+            }
+
+            // Peluru Update & Render
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                const b = bullets[i];
+                b.x += b.vx;
+                b.y += b.vy;
+
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+                ctx.fillStyle = b.color;
+                ctx.shadowColor = b.color;
+                ctx.shadowBlur = 8;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                if (b.x < 0 || b.x > canvas.width || b.y < 0 || b.y > canvas.height) {
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // Zombie Update & Render
+            for (let i = zombies.length - 1; i >= 0; i--) {
+                const z = zombies[i];
+                const angle = Math.atan2(player.y - z.y, player.x - z.x);
+
+                z.x += Math.cos(angle) * z.speed;
+                z.y += Math.sin(angle) * z.speed;
+
+                ctx.save();
+                ctx.translate(z.x, z.y);
+                ctx.rotate(angle);
+
+                ctx.fillStyle = z.color;
+                ctx.beginPath();
+                ctx.arc(0, 0, z.radius, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#15803d';
+                ctx.fillRect(z.radius - 2, -6, z.type === 'tank' ? 12 : 8, 4);
+                ctx.fillRect(z.radius - 2, 2, z.type === 'tank' ? 12 : 8, 4);
+                ctx.restore();
+
+                if (z.hp < z.maxHp) {
+                    const barW = z.radius * 2;
+                    ctx.fillStyle = '#334155';
+                    ctx.fillRect(z.x - barW / 2, z.y - z.radius - 10, barW, 4);
+                    ctx.fillStyle = '#ef4444';
+                    ctx.fillRect(z.x - barW / 2, z.y - z.radius - 10, (z.hp / z.maxHp) * barW, 4);
+                }
+
+                // Hit Peluru -> Zombie
+                for (let j = bullets.length - 1; j >= 0; j--) {
+                    const b = bullets[j];
+                    const dist = Math.hypot(b.x - z.x, b.y - z.y);
+
+                    if (dist < z.radius + b.radius) {
+                        const damage = player.weapon === 'RAPID FIRE' ? 22 : 18;
+                        z.hp -= damage;
+                        createBloodParticles(b.x, b.y, '#dc2626', 6);
+                        playSynthesizedSound('hit');
+                        spawnFloatingText(z.x, z.y - 10, `-${damage}`, '#f87171');
+                        bullets.splice(j, 1);
+
+                        if (z.hp <= 0) {
+                            createBloodParticles(z.x, z.y, '#b91c1c', 16);
+                            const earnedScore = (z.type === 'tank' ? 60 : z.type === 'runner' ? 30 : 20);
+                            score += earnedScore;
+                            kills++;
+                            spawnFloatingText(z.x, z.y - 20, `+${earnedScore}`, '#fbbf24');
+
+                            if (Math.random() < 0.25) {
+                                const itemTypes = ['medkit', 'ammo', 'rapid'];
+                                const chosenType = itemTypes[Math.floor(Math.random() * itemTypes.length)];
+                                items.push({ x: z.x, y: z.y, type: chosenType });
+                            }
+
+                            if (kills % 12 === 0) wave++;
+
+                            zombies.splice(i, 1);
+                            updateHUD();
+                            break;
+                        }
+                    }
+                }
+
+                // Zombie Hit -> Pemain
+                const distPlayer = Math.hypot(player.x - z.x, player.y - z.y);
+                if (distPlayer < player.radius + z.radius) {
+                    player.hp -= (z.type === 'tank' ? 0.8 : 0.4);
+                    updateHUD();
+                    if (player.hp <= 0) {
+                        gameOver();
+                        return;
+                    }
+                }
+            }
+
+            // Item Power-Ups
+            for (let i = items.length - 1; i >= 0; i--) {
+                const item = items[i];
+
+                ctx.save();
+                ctx.translate(item.x, item.y);
+                ctx.beginPath();
+                ctx.arc(0, 0, 10, 0, Math.PI * 2);
+
+                if (item.type === 'medkit') {
+                    ctx.fillStyle = '#10b981';
+                    ctx.shadowColor = '#10b981';
+                } else if (item.type === 'ammo') {
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.shadowColor = '#f59e0b';
+                } else {
+                    ctx.fillStyle = '#a855f7';
+                    ctx.shadowColor = '#a855f7';
+                }
+
+                ctx.shadowBlur = 10;
+                ctx.fill();
+                ctx.restore();
+
+                const dist = Math.hypot(player.x - item.x, player.y - item.y);
+                if (dist < player.radius + 10) {
+                    if (item.type === 'medkit') {
+                        player.hp = Math.min(player.maxHp, player.hp + 30);
+                        spawnFloatingText(player.x, player.y - 15, '+30 HP', '#34d399');
+                    } else if (item.type === 'ammo') {
+                        player.reserveAmmo += 45;
+                        spawnFloatingText(player.x, player.y - 15, '+45 AMMO', '#fbbf24');
+                    } else if (item.type === 'rapid') {
+                        player.weapon = 'RAPID FIRE';
+                        player.fireRate = 80;
+                        player.rapidFireTimer = 7000;
+                        spawnFloatingText(player.x, player.y - 15, 'RAPID FIRE!', '#c084fc');
+                    }
+
+                    playSynthesizedSound('pickup');
+                    updateHUD();
+                    items.splice(i, 1);
+                }
+            }
+
+            // Partikel Darah
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= 0.03;
+
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, p.alpha);
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+
+                if (p.alpha <= 0) particles.splice(i, 1);
+            }
+
+            // Floating Text Update & Render
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const ft = floatingTexts[i];
+                ft.y += ft.vy;
+                ft.alpha -= 0.025;
+
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, ft.alpha);
+                ctx.fillStyle = ft.color;
+                ctx.font = 'bold 15px Orbitron';
+                ctx.textAlign = 'center';
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.restore();
+
+                if (ft.alpha <= 0) floatingTexts.splice(i, 1);
+            }
+
+            // Render Pemain Utama
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            ctx.rotate(player.angle);
+
+            ctx.fillStyle = '#64748b';
+            ctx.fillRect(10, 3, 15, 6);
+
+            ctx.fillStyle = player.color;
+            ctx.shadowColor = player.color;
+            ctx.shadowBlur = 12;
+            ctx.beginPath();
+            ctx.arc(0, 0, player.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            ctx.fillStyle = '#0284c7';
+            ctx.beginPath();
+            ctx.arc(10, -8, 4, 0, Math.PI * 2);
+            ctx.arc(10, 8, 4, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Setup Virtual Touch Joysticks
+        function setupTouchJoysticks() {
+            const moveBase = document.getElementById('move-base');
+            const moveStick = document.getElementById('move-stick');
+            const aimBase = document.getElementById('aim-base');
+            const aimStick = document.getElementById('aim-stick');
+
+            const handleJoystickTouch = (e, baseElem, stickElem, joystickData, isAim = false) => {
+                e.preventDefault();
+                const rect = baseElem.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const touch = e.changedTouches[i];
+                    
+                    if (!joystickData.active && (joystickData.touchId === null)) {
+                        const distFromCenter = Math.hypot(touch.clientX - centerX, touch.clientY - centerY);
+                        if (distFromCenter < rect.width) {
+                            joystickData.active = true;
+                            joystickData.touchId = touch.identifier;
+                        }
+                    }
+
+                    if (joystickData.active && touch.identifier === joystickData.touchId) {
+                        let deltaX = touch.clientX - centerX;
+                        let deltaY = touch.clientY - centerY;
+                        const maxRadius = rect.width / 2;
+                        const distance = Math.hypot(deltaX, deltaY);
+
+                        if (distance > maxRadius) {
+                            deltaX = (deltaX / distance) * maxRadius;
+                            deltaY = (deltaY / distance) * maxRadius;
+                        }
+
+                        stickElem.style.transform = `translate(calc(-50% + ${deltaX}px), calc(-50% + ${deltaY}px))`;
+                        joystickData.x = deltaX / maxRadius;
+                        joystickData.y = deltaY / maxRadius;
+                    }
+                }
+            };
+
+            const resetJoystick = (e, stickElem, joystickData) => {
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === joystickData.touchId) {
+                        joystickData.active = false;
+                        joystickData.touchId = null;
+                        joystickData.x = 0;
+                        joystickData.y = 0;
+                        stickElem.style.transform = 'translate(-50%, -50%)';
+                    }
+                }
+            };
+
+            // Touch Listener Joystick Movement
+            moveBase.addEventListener('touchstart', (e) => handleJoystickTouch(e, moveBase, moveStick, moveJoystick), { passive: false });
+            moveBase.addEventListener('touchmove', (e) => handleJoystickTouch(e, moveBase, moveStick, moveJoystick), { passive: false });
+            moveBase.addEventListener('touchend', (e) => resetJoystick(e, moveStick, moveJoystick), { passive: false });
+            moveBase.addEventListener('touchcancel', (e) => resetJoystick(e, moveStick, moveJoystick), { passive: false });
+
+            // Touch Listener Joystick Aiming
+            aimBase.addEventListener('touchstart', (e) => handleJoystickTouch(e, aimBase, aimStick, aimJoystick, true), { passive: false });
+            aimBase.addEventListener('touchmove', (e) => handleJoystickTouch(e, aimBase, aimStick, aimJoystick, true), { passive: false });
+            aimBase.addEventListener('touchend', (e) => resetJoystick(e, aimStick, aimJoystick), { passive: false });
+            aimBase.addEventListener('touchcancel', (e) => resetJoystick(e, aimStick, aimJoystick), { passive: false });
+        }
+
+        // Setup Event Listeners
+        function setupEventListeners() {
+            canvas = document.getElementById('gameCanvas');
+            if (!canvas) return;
+            ctx = canvas.getContext('2d');
+
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+
+            // Keyboard Controls Fallback (PC)
+            window.addEventListener('keydown', (e) => {
+                const key = e.key.toLowerCase();
+                keys[key] = true;
+                if (key === 'r') reloadWeapon();
+            });
+
+            window.addEventListener('keyup', (e) => {
+                keys[e.key.toLowerCase()] = false;
+            });
+
+            // Touch Joysticks Setup
+            setupTouchJoysticks();
+
+            // Action Buttons Setup
+            document.getElementById('btn-reload')?.addEventListener('click', reloadWeapon);
+            document.getElementById('btn-manual-fire')?.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                shootBullet();
+            });
+
+            // Toggle Auto-Fire Button
+            const autoFireBtn = document.getElementById('btn-toggle-autofire');
+            const autoFireLabel = document.getElementById('autofire-label');
+            autoFireBtn?.addEventListener('click', () => {
+                autoFireEnabled = !autoFireEnabled;
+                if (autoFireLabel) autoFireLabel.innerText = autoFireEnabled ? "AUTO: ON" : "AUTO: OFF";
+                autoFireBtn.className = autoFireEnabled 
+                    ? "touch-action-btn px-3 py-2 rounded-xl text-xs font-arcade text-amber-400 flex items-center gap-1.5 shadow-lg"
+                    : "touch-action-btn px-3 py-2 rounded-xl text-xs font-arcade text-slate-400 flex items-center gap-1.5 shadow-lg";
+            });
+
+            // Start & Restart Buttons
+            const startBtn = document.getElementById('start-btn');
+            const restartBtn = document.getElementById('restart-btn');
+
+            if (startBtn) {
+                startBtn.addEventListener('click', startGame);
+                startBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startGame(); });
+            }
+
+            if (restartBtn) {
+                restartBtn.addEventListener('click', startGame);
+                restartBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startGame(); });
+            }
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setupEventListeners);
+        } else {
+            setupEventListeners();
+        }
+    </script>
+</body>
+</html>
